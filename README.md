@@ -38,7 +38,7 @@ data/output/예실대비표_통합결과.xlsx
 
 ```bash
 cd excel-budget
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
@@ -74,6 +74,54 @@ python src/main.py
 | `BUDGET_LLM_DISABLED` | (없음) | `1`이면 LLM 비활성 |
 
 LLM 탐지가 실패하면 규칙 기반 추론으로 자동 전환됩니다.
+
+---
+
+## 코드 실행 흐름
+
+```mermaid
+%%{init: {
+  "flowchart": { "nodeSpacing": 20, "rankSpacing": 24, "padding": 4 },
+  "themeVariables": { "fontSize": "12px" }
+}}%%
+flowchart LR
+    A[main.py] --> B[reader.py]
+    B --> C[writer.py]
+    C --> D([완료])
+
+    B -.-> E[schema_detect.py]
+    E -.-> F[llm_client.py]
+    G[schema.py] -.-> B
+    G -.-> E
+```
+
+**실선** = 실제 실행 순서 · **점선** = 필요할 때만 호출
+
+1. `main.py` — 시작, 전체 조율
+2. `reader.py` — 엑셀 읽기 · 비용 코드 통합
+3. `writer.py` — 결과 xlsx 저장
+
+> `schema_detect.py`는 **첫 번째 성공 파일**을 읽을 때만 호출됩니다.  
+> `llm_client.py`는 LLM 사용 가능할 때만, `schema.py`는 스키마 정의 참조용입니다.
+
+
+### 스키마 탐지 흐름 (`schema_detect.py` 진입 시)
+
+```mermaid
+%%{init: {
+  "flowchart": { "nodeSpacing": 12, "rankSpacing": 18, "padding": 4 },
+  "themeVariables": { "fontSize": "11px" }
+}}%%
+flowchart TD
+    R[reader.py] -->|첫 성공 파일| SD[schema_detect.py]
+    SD --> S[schema.py 참조]
+    SD --> B{llm_client.py<br/>사용?}
+    B -->|예| L[llm_client.py]
+    L --> SD
+    B -->|아니오 또는 실패| H[schema_detect.py 내부<br/>heuristic 처리]
+    SD --> R2[reader.py로 스키마 반환]
+    H --> R2
+```
 
 ---
 
